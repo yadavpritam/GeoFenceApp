@@ -5,6 +5,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.provider.Settings
+import android.Manifest
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +35,7 @@ fun MapScreen(
 ) {
     /* ----------------------------- State ----------------------------- */
 
+    var showLocationDialog by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -55,6 +62,24 @@ fun MapScreen(
 
     /* ----------------------- Location Handling ------------------------ */
 
+    val activity = context as ComponentActivity
+
+    val backgroundPermissionLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            if (!granted) {
+                Toast
+                    .makeText(
+                        context,
+                        "Background location is required for geofence to work",
+                        Toast.LENGTH_LONG
+                    )
+                    .show()
+            }
+        }
+
+
     LaunchedEffect(Unit) {
         if (
             ContextCompat.checkSelfPermission(
@@ -64,9 +89,10 @@ fun MapScreen(
         ) return@LaunchedEffect
 
         if (!isLocationEnabled(context)) {
-            openLocationSettings(context)
+            showLocationDialog = true
             return@LaunchedEffect
         }
+
 
         try {
             fusedLocationClient.lastLocation.addOnSuccessListener { location ->
@@ -171,6 +197,25 @@ fun MapScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+
+                        // 🔴 Android 10+ (Q)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+
+                            val bgGranted =
+                                ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                                ) == PackageManager.PERMISSION_GRANTED
+
+                            if (!bgGranted) {
+                                backgroundPermissionLauncher.launch(
+                                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                                )
+                                return@TextButton   // 👈 geofence abhi add mat karo
+                            }
+                        }
+
+                        // ✅ Permission OK → Ab geofence add karo
                         val location = selectedLocation ?: return@TextButton
                         val name = geofenceName.trim()
                         if (name.isBlank()) return@TextButton
@@ -191,21 +236,12 @@ fun MapScreen(
                                     radius = radius.toDouble()
                                 )
                             )
-
-                            database.visitDao().insertVisit(
-                                VisitEntity(
-                                    geofenceName = name,
-                                    entryTime = System.currentTimeMillis(),
-                                    exitTime = System.currentTimeMillis(),
-                                    durationMillis = 0
-                                )
-                            )
                         }
 
-                        geofenceName = ""
                         showAddDialog = false
                     }
-                ) {
+                )
+                {
                     Text("Save")
                 }
             },
@@ -254,6 +290,25 @@ fun MapScreen(
             }
         )
     }
+
+    /* ----------------------- Location Dialog --------------------------- */
+
+    if (showLocationDialog) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Location Disabled") },
+            text = { Text("Please enable location to continue") },
+            confirmButton = {
+                TextButton(onClick = {
+                    openLocationSettings(context)
+                    showLocationDialog = false
+                }) {
+                    Text("Enable Location")
+                }
+            }
+        )
+    }
+
 }
 
 /* ----------------------- Helper Functions ---------------------------- */

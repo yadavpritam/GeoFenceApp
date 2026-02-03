@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.example.geofenceapp.geofence.LocationPermissionGate
 import com.example.geofenceapp.ui.history.VisitHistoryScreen
 import com.example.geofenceapp.ui.map.MapScreen
 import com.example.geofenceapp.ui.theme.GeoFenceAppTheme
@@ -23,19 +24,24 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             GeoFenceAppTheme {
-                var showHistory by remember { mutableStateOf(false) }
 
-                if (showHistory) {
-                    VisitHistoryScreen(
-                        onBack = { showHistory = false }
-                    )
-                } else {
-                    MapScreen(
-                        onOpenHistory = { showHistory = true }
-                    )
+                LocationPermissionGate {
+
+                    var showHistory by remember { mutableStateOf(false) }
+
+                    if (showHistory) {
+                        VisitHistoryScreen(
+                            onBack = { showHistory = false }
+                        )
+                    } else {
+                        MapScreen(
+                            onOpenHistory = { showHistory = true }
+                        )
+                    }
                 }
             }
         }
+
     }
 
     /* -------------------- Permissions -------------------- */
