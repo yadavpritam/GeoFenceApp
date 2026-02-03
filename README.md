@@ -80,6 +80,12 @@ All required permissions are handled at runtime.
 - User is notified when exiting a geofenced area along with time spent
 
 ---
+## 📦 APK Download
+
+You can download the latest APK from GitHub Releases:  
+👉 https://github.com/yadavpritam/GeoFenceApp/releases/tag/v1.0
+
+--
 
 ## 🎥 Demo Video
 
