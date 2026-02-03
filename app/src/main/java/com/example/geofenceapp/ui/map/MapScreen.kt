@@ -177,8 +177,8 @@ fun MapScreen(
 
                         geofenceManager.addGeofence(
                             id = name,
-                            lat = location.latitude,
-                            lng = location.longitude,
+                            latitude = location.latitude,
+                            longitude = location.longitude,
                             radius = radius
                         )
 
