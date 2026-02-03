@@ -6,10 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.geofenceapp.ui.history.VisitHistoryScreen
@@ -22,29 +19,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // ✅ Runtime permission request
-        if (ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
-                ),
-                101
-            )
-        }
+        requestLocationPermissions()
 
         setContent {
             GeoFenceAppTheme {
-
-
-
                 var showHistory by remember { mutableStateOf(false) }
-
 
                 if (showHistory) {
                     VisitHistoryScreen(
@@ -57,5 +36,29 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /* -------------------- Permissions -------------------- */
+
+    private fun requestLocationPermissions() {
+        if (
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                ),
+                PERMISSION_REQUEST_CODE
+            )
+        }
+    }
+
+    companion object {
+        private const val PERMISSION_REQUEST_CODE = 101
     }
 }

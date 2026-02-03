@@ -5,26 +5,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.provider.Settings
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -37,20 +20,15 @@ import com.example.geofenceapp.geofence.GeofenceManager
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.Circle
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.MarkerState
-import com.google.maps.android.compose.rememberCameraPositionState
-import com.google.maps.android.compose.rememberMarkerState
+import com.google.maps.android.compose.*
 import kotlinx.coroutines.launch
-
 
 @Composable
 fun MapScreen(
-    onOpenHistory: () -> Unit,
+    onOpenHistory: () -> Unit
 ) {
-    // ───────────── State ─────────────
+    /* ----------------------------- State ----------------------------- */
+
     var showAddDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -60,54 +38,51 @@ fun MapScreen(
 
     var geofenceToDelete by remember { mutableStateOf<GeofenceEntity?>(null) }
 
-    // ───────────── Dependencies ─────────────
+    /* -------------------------- Dependencies -------------------------- */
+
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     val database = remember { GeoDatabase.getInstance(context) }
     val geofenceDao = database.geofenceDao()
     val geofenceManager = remember { GeofenceManager(context) }
-    val scope = rememberCoroutineScope()
 
     val geofences by geofenceDao.getAllGeofences()
         .collectAsState(initial = emptyList())
 
     val cameraState = rememberCameraPositionState()
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-    LaunchedEffect(Unit) {
 
-        // 1️⃣ Permission check
+    /* ----------------------- Location Handling ------------------------ */
+
+    LaunchedEffect(Unit) {
         if (
             ContextCompat.checkSelfPermission(
                 context,
                 android.Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return@LaunchedEffect
-        }
+        ) return@LaunchedEffect
 
-        // 2️⃣ Location (GPS) ON/OFF check
         if (!isLocationEnabled(context)) {
             openLocationSettings(context)
             return@LaunchedEffect
         }
 
-        // 3️⃣ Location ON → live location lo
         try {
-            fusedLocationClient.lastLocation
-                .addOnSuccessListener { location ->
-                    location?.let {
-                        cameraState.position = CameraPosition.fromLatLngZoom(
-                            LatLng(it.latitude, it.longitude),
-                            16f
-                        )
-                    }
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                location?.let {
+                    cameraState.position = CameraPosition.fromLatLngZoom(
+                        LatLng(it.latitude, it.longitude),
+                        16f
+                    )
                 }
-        } catch (e: SecurityException) {
-            e.printStackTrace()
+            }
+        } catch (_: SecurityException) {
         }
     }
 
+    /* ------------------------------ UI ------------------------------- */
 
-    // ───────────── UI ─────────────
     Column(modifier = Modifier.fillMaxSize()) {
 
         GoogleMap(
@@ -121,7 +96,6 @@ fun MapScreen(
             geofences.forEach { geofence ->
                 val center = LatLng(geofence.lat, geofence.longitude)
 
-                // 🔵 Circle
                 Circle(
                     center = center,
                     radius = geofence.radius,
@@ -130,7 +104,6 @@ fun MapScreen(
                     strokeWidth = 4f
                 )
 
-                // 📍 CENTER MARKER (DELETE ENABLED ✅)
                 Marker(
                     state = MarkerState(center),
                     onClick = {
@@ -140,9 +113,8 @@ fun MapScreen(
                     }
                 )
 
-                // ✍️ Label outside circle
                 val labelPosition = LatLng(
-                    geofence.lat + (geofence.radius / 111000.0),
+                    geofence.lat + (geofence.radius / 111_000.0),
                     geofence.longitude
                 )
 
@@ -159,10 +131,7 @@ fun MapScreen(
                         labelState.showInfoWindow()
                     }
                 }
-
             }
-
-
         }
 
         Button(
@@ -175,7 +144,8 @@ fun MapScreen(
         }
     }
 
-    // ───────────── Add Geofence Dialog ─────────────
+    /* ------------------------- Add Dialog ---------------------------- */
+
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
@@ -188,7 +158,7 @@ fun MapScreen(
                         label = { Text("Location Name") }
                     )
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Text("Radius: ${radius.toInt()} meters")
                     Slider(
@@ -199,45 +169,45 @@ fun MapScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val location = selectedLocation ?: return@TextButton
+                TextButton(
+                    onClick = {
+                        val location = selectedLocation ?: return@TextButton
+                        val name = geofenceName.trim()
+                        if (name.isBlank()) return@TextButton
 
-                    val nameToSave = geofenceName.trim()
-                    if (nameToSave.isBlank()) return@TextButton
-
-                    geofenceManager.addGeofence(
-                        id = nameToSave,
-                        lat = location.latitude,
-                        lng = location.longitude,
-                        radius = radius
-                    )
-
-                    scope.launch {
-                        geofenceDao.insert(
-                            GeofenceEntity(
-                                name = nameToSave,   // ✅ FIXED
-                                lat = location.latitude,
-                                longitude = location.longitude,
-                                radius = radius.toDouble()
-                            )
+                        geofenceManager.addGeofence(
+                            id = name,
+                            lat = location.latitude,
+                            lng = location.longitude,
+                            radius = radius
                         )
 
-                        database.visitDao().insertVisit(
-                            VisitEntity(
-                                geofenceName = nameToSave,   // ✅ FIXED
-                                entryTime = System.currentTimeMillis() - 300_000,
-                                exitTime = System.currentTimeMillis(),
-                                durationMillis = 300_000
+                        scope.launch {
+                            geofenceDao.insert(
+                                GeofenceEntity(
+                                    name = name,
+                                    lat = location.latitude,
+                                    longitude = location.longitude,
+                                    radius = radius.toDouble()
+                                )
                             )
-                        )
+
+                            database.visitDao().insertVisit(
+                                VisitEntity(
+                                    geofenceName = name,
+                                    entryTime = System.currentTimeMillis(),
+                                    exitTime = System.currentTimeMillis(),
+                                    durationMillis = 0
+                                )
+                            )
+                        }
+
+                        geofenceName = ""
+                        showAddDialog = false
                     }
-
-                    geofenceName = ""        // ✅ ab safe hai
-                    showAddDialog = false
-                }) {
+                ) {
                     Text("Save")
                 }
-
             },
             dismissButton = {
                 TextButton(onClick = { showAddDialog = false }) {
@@ -247,33 +217,38 @@ fun MapScreen(
         )
     }
 
-    // ───────────── Delete Confirmation ─────────────
+    /* ----------------------- Delete Dialog --------------------------- */
+
     if (showDeleteDialog && geofenceToDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Remove Geofence") },
             text = { Text("Do you want to remove this geofence?") },
             confirmButton = {
-                TextButton(onClick = {
-                    val geofence = geofenceToDelete!!
+                TextButton(
+                    onClick = {
+                        val geofence = geofenceToDelete ?: return@TextButton
 
-                    scope.launch {
-                        geofenceDao.deleteGeofence(geofence.id)
+                        scope.launch {
+                            geofenceDao.deleteGeofence(geofence.id)
+                        }
+
+                        geofenceManager.removeGeofence(geofence.name)
+
+                        geofenceToDelete = null
+                        showDeleteDialog = false
                     }
-
-                    geofenceManager.removeGeofence(geofence.name)
-
-                    geofenceToDelete = null
-                    showDeleteDialog = false
-                }) {
+                ) {
                     Text("Yes")
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    geofenceToDelete = null
-                    showDeleteDialog = false
-                }) {
+                TextButton(
+                    onClick = {
+                        geofenceToDelete = null
+                        showDeleteDialog = false
+                    }
+                ) {
                     Text("No")
                 }
             }
@@ -281,12 +256,12 @@ fun MapScreen(
     }
 }
 
-fun isLocationEnabled(context: Context): Boolean {
-    val locationManager =
-        context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+/* ----------------------- Helper Functions ---------------------------- */
 
-    return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-            locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+fun isLocationEnabled(context: Context): Boolean {
+    val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    return manager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+            manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
 }
 
 fun openLocationSettings(context: Context) {

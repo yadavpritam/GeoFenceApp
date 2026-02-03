@@ -21,25 +21,32 @@ import java.util.*
 fun VisitHistoryScreen(
     onBack: () -> Unit
 ) {
-    // ✅ Handle physical back button
+    /* ---------------------- Back Navigation ---------------------- */
+
     BackHandler {
         onBack()
     }
 
+    /* ------------------------ Data ------------------------------- */
+
     val context = LocalContext.current
-    val db = remember { GeoDatabase.getInstance(context) }
-    val visits by db.visitDao().getAllVisits()
+    val database = remember { GeoDatabase.getInstance(context) }
+
+    val visits by database.visitDao()
+        .getAllVisits()
         .collectAsState(initial = emptyList())
+
+    /* ------------------------- UI ------------------------------- */
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Visit History") },
+                title = { Text(text = "Visit History") },
                 navigationIcon = {
-                    IconButton(onClick = { onBack() }) {
+                    IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = "Navigate back"
                         )
                     }
                 }
@@ -48,42 +55,73 @@ fun VisitHistoryScreen(
     ) { paddingValues ->
 
         if (visits.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("No visits found")
-            }
-        } else {
-            LazyColumn(
+            EmptyState(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(16.dp)
-            ) {
-                items(visits) { visit ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("Location: ${visit.geofenceName}")
-                            Spacer(Modifier.height(4.dp))
-                            Text("Entry: ${formatTime(visit.entryTime)}")
-                            Text("Exit: ${formatTime(visit.exitTime)}")
-                            Text("Duration: ${visit.durationMillis / 1000} sec")
-                        }
-                    }
-                }
-            }
+            )
+        } else {
+            VisitList(
+                visits = visits,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            )
         }
     }
 }
 
-private fun formatTime(time: Long): String {
-    val sdf = SimpleDateFormat("dd MMM, HH:mm:ss", Locale.getDefault())
-    return sdf.format(Date(time))
+/* ----------------------- Components ---------------------------- */
+
+@Composable
+private fun EmptyState(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = "No visits found")
+    }
+}
+
+@Composable
+private fun VisitList(
+    visits: List<com.example.geofenceapp.data.entity.VisitEntity>,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier.padding(16.dp)
+    ) {
+        items(visits) { visit ->
+            VisitItem(visit)
+        }
+    }
+}
+
+@Composable
+private fun VisitItem(
+    visit: com.example.geofenceapp.data.entity.VisitEntity
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(text = "Location: ${visit.geofenceName}")
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = "Entry: ${formatTime(visit.entryTime)}")
+            Text(text = "Exit: ${formatTime(visit.exitTime)}")
+            Text(text = "Duration: ${visit.durationMillis / 1000} sec")
+        }
+    }
+}
+
+/* ----------------------- Utilities ----------------------------- */
+
+private fun formatTime(timeMillis: Long): String {
+    val formatter = SimpleDateFormat(
+        "dd MMM, HH:mm:ss",
+        Locale.getDefault()
+    )
+    return formatter.format(Date(timeMillis))
 }

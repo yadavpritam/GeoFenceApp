@@ -9,29 +9,40 @@ import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 
-class GeofenceManager(private val context: Context) {
+class GeofenceManager(
+    private val context: Context
+) {
 
-    private val client: GeofencingClient =
+    /* ------------------------ Client ------------------------------- */
+
+    private val geofencingClient: GeofencingClient =
         LocationServices.getGeofencingClient(context)
 
-    private val pendingIntent: PendingIntent by lazy {
+    /* --------------------- PendingIntent --------------------------- */
+
+    private val geofencePendingIntent: PendingIntent by lazy {
         val intent = Intent(context, GeofenceReceiver::class.java)
+
         PendingIntent.getBroadcast(
-            context, 0, intent,
+            context,
+            REQUEST_CODE_GEOFENCE,
+            intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
 
+    /* ----------------------- Public API ---------------------------- */
+
     @SuppressLint("MissingPermission")
     fun addGeofence(
         id: String,
-        lat: Double,
-        lng: Double,
-        radius: Float,
+        latitude: Double,
+        longitude: Double,
+        radius: Float
     ) {
         val geofence = Geofence.Builder()
             .setRequestId(id)
-            .setCircularRegion(lat, lng, radius)
+            .setCircularRegion(latitude, longitude, radius)
             .setTransitionTypes(
                 Geofence.GEOFENCE_TRANSITION_ENTER or
                         Geofence.GEOFENCE_TRANSITION_EXIT
@@ -44,10 +55,19 @@ class GeofenceManager(private val context: Context) {
             .addGeofence(geofence)
             .build()
 
-        client.addGeofences(request, pendingIntent)
+        geofencingClient.addGeofences(
+            request,
+            geofencePendingIntent
+        )
     }
+
     fun removeGeofence(id: String) {
-        client.removeGeofences(listOf(id))
+        geofencingClient.removeGeofences(listOf(id))
+    }
+
+    /* ------------------------ Constants ---------------------------- */
+
+    companion object {
+        private const val REQUEST_CODE_GEOFENCE = 1001
     }
 }
-

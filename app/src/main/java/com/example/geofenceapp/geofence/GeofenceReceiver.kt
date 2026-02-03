@@ -18,77 +18,123 @@ import kotlinx.coroutines.launch
 
 class GeofenceReceiver : BroadcastReceiver() {
 
-
     override fun onReceive(context: Context, intent: Intent) {
 
-
-        Log.d("RECEIVER_TEST", "Receiver CALLED")
+        Log.d(TAG, "GeofenceReceiver triggered")
 
         val event = GeofencingEvent.fromIntent(intent) ?: return
         if (event.hasError()) return
 
         val transition = event.geofenceTransition
-        val id = event.triggeringGeofences?.firstOrNull()?.requestId ?: return
+        val geofenceId = event.triggeringGeofences
+            ?.firstOrNull()
+            ?.requestId
+            ?: return
 
-        val prefs = context.getSharedPreferences("geo_prefs", Context.MODE_PRIVATE)
-        val now = System.currentTimeMillis()
+        val preferences =
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        val currentTime = System.currentTimeMillis()
 
         when (transition) {
-
             Geofence.GEOFENCE_TRANSITION_ENTER -> {
-                prefs.edit().putLong("entry_$id", now).apply()
-                showNotification(context, "Entered $id")
+                preferences.edit()
+                    .putLong(entryKey(geofenceId), currentTime)
+                    .apply()
+
+                showNotification(
+                    context,
+                    "Entered $geofenceId"
+                )
             }
 
             Geofence.GEOFENCE_TRANSITION_EXIT -> {
-                val entryTime = prefs.getLong("entry_$id", -1)
+                val entryTime =
+                    preferences.getLong(entryKey(geofenceId), -1)
+
                 if (entryTime != -1L) {
-                    val duration = now - entryTime
+                    val duration = currentTime - entryTime
 
-                    val db = GeoDatabase.getInstance(context)
-                    CoroutineScope(Dispatchers.IO).launch {
-                        db.visitDao().insertVisit(
-                            VisitEntity(
-                                geofenceName = id,
-                                entryTime = entryTime,
-                                exitTime = now,
-                                durationMillis = duration
-                            )
-                        )
-                    }
-                    prefs.edit().remove("entry_$id").apply()
+                    saveVisit(
+                        context = context,
+                        geofenceId = geofenceId,
+                        entryTime = entryTime,
+                        exitTime = currentTime,
+                        duration = duration
+                    )
 
-                    showNotification(context, "Exited $id after ${duration / 1000}s")
+                    preferences.edit()
+                        .remove(entryKey(geofenceId))
+                        .apply()
+
+                    showNotification(
+                        context,
+                        "Exited $geofenceId after ${duration / 1000}s"
+                    )
                 }
             }
         }
-
-
     }
 
-    private fun showNotification(context: Context, text: String) {
-        val channelId = "geofence_channel"
+    /* ------------------------ Data -------------------------------- */
 
+    private fun saveVisit(
+        context: Context,
+        geofenceId: String,
+        entryTime: Long,
+        exitTime: Long,
+        duration: Long
+    ) {
+        val database = GeoDatabase.getInstance(context)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            database.visitDao().insertVisit(
+                VisitEntity(
+                    geofenceName = geofenceId,
+                    entryTime = entryTime,
+                    exitTime = exitTime,
+                    durationMillis = duration
+                )
+            )
+        }
+    }
+
+    /* --------------------- Notifications --------------------------- */
+
+    private fun showNotification(
+        context: Context,
+        message: String
+    ) {
         val manager =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            context.getSystemService(Context.NOTIFICATION_SERVICE)
+                    as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                channelId,
+                CHANNEL_ID,
                 "Geofence Alerts",
                 NotificationManager.IMPORTANCE_HIGH
             )
             manager.createNotificationChannel(channel)
         }
 
-        val notification = NotificationCompat.Builder(context, channelId)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_map)
             .setContentTitle("Geofence Alert")
-            .setContentText(text)
+            .setContentText(message)
             .setAutoCancel(true)
             .build()
 
         manager.notify(System.currentTimeMillis().toInt(), notification)
     }
 
+    /* ------------------------ Utils ------------------------------- */
+
+    private fun entryKey(id: String): String = "entry_$id"
+
+    companion object {
+        private const val TAG = "GeofenceReceiver"
+        private const val CHANNEL_ID = "geofence_channel"
+        private const val PREFS_NAME = "geo_prefs"
+    }
 }
